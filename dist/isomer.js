@@ -6,7 +6,7 @@
  * Released under the MIT license
  * http://jdan.github.io/isomer/license.txt
  *
- * Date: 2014-05-21
+ * Date: 2014-05-22
  */
 !function(e){if("object"==typeof exports)module.exports=e();else if("function"==typeof define&&define.amd)define(e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.Isomer=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 /**
@@ -182,6 +182,7 @@ var Path = _dereq_('./path');
 var Point = _dereq_('./point');
 var Shape = _dereq_('./shape');
 var Vector = _dereq_('./vector');
+var Obj = _dereq_('./obj');
 
 
 /**
@@ -313,11 +314,85 @@ Isomer.Path = Path;
 Isomer.Point = Point;
 Isomer.Shape = Shape;
 Isomer.Vector = Vector;
+Isomer.Obj = Obj;
 
 /* Expose Isomer API */
 module.exports = Isomer;
 
-},{"./canvas":2,"./color":3,"./path":5,"./point":6,"./shape":7,"./vector":8}],5:[function(_dereq_,module,exports){
+},{"./canvas":2,"./color":3,"./obj":5,"./path":6,"./point":7,"./shape":8,"./vector":9}],5:[function(_dereq_,module,exports){
+function Obj(fileUrl, cb) {
+  this.fileUrl = fileUrl;
+  this.callBack = cb;
+  this.importFile();
+}
+
+/*
+ * Function to import files with obj extension
+ */
+Obj.prototype.importFile = function () {
+  var request = new XMLHttpRequest();
+  var self = this;
+
+  request.open('GET', this.fileUrl, true);
+  request.responseType = 'text';
+  request.onload = function(event) {
+    if (request.readyState === 4) { 
+      if (request.status === 200) {
+        self.file = request.response;
+        return self.parseObj();
+      }
+    }
+  };
+  request.send();
+};
+
+/*
+ * Function for parsing loaded .obj file
+ */
+Obj.prototype.parseObj = function() {
+  var Path = Isomer.Path;
+  var Point = Isomer.Point;
+  var vertices = [];
+  var groups = [];
+  var newGroup = [];
+  var path = new Path();
+  var lines = this.file.split('\n');
+  var Point = Isomer.Point;
+
+  for (var i = 0; i < lines.length;i++)
+  {
+    var line = lines[i].trim().split(/\s+/);
+
+    switch(line[0]) {
+      case 'v':
+        vertices.push(new Point(parseFloat(line[1]), parseFloat(line[2]), parseFloat(line[3])));
+        break;
+
+      case 'f':
+        var newPathVertices = [];
+        line.splice(0, 1);
+        for(var x = 0; x < line.length; x++) {
+          newPathVertices.push(vertices[line[x]-1]);
+        }
+        newGroup.push(new Path(newPathVertices));
+        break;
+      case 'g':
+        if (line[1])
+        {
+            groups.push(newGroup);
+        }
+        newGroup = new Shape();
+        break;
+    }
+  }
+
+  groups.push(newGroup);
+  this.generatedObject = groups;
+  this.callBack(this.generatedObject);
+};
+
+module.exports = Obj;
+},{}],6:[function(_dereq_,module,exports){
 var Point = _dereq_('./point');
 
 /**
@@ -473,7 +548,7 @@ Path.Star = function (origin, outerRadius, innerRadius, points) {
 /* Expose the Path constructor */
 module.exports = Path;
 
-},{"./point":6}],6:[function(_dereq_,module,exports){
+},{"./point":7}],7:[function(_dereq_,module,exports){
 function Point(x, y, z) {
   if (this instanceof Point) {
     this.x = (typeof x === 'number') ? x : 0;
@@ -559,7 +634,7 @@ Point.distance = function (p1, p2) {
 
 module.exports = Point;
 
-},{}],7:[function(_dereq_,module,exports){
+},{}],8:[function(_dereq_,module,exports){
 var Path = _dereq_('./path');
 var Point = _dereq_('./point');
 
@@ -766,7 +841,7 @@ Shape.Cylinder = function (origin, radius, vertices, height) {
 
 module.exports = Shape;
 
-},{"./path":5,"./point":6}],8:[function(_dereq_,module,exports){
+},{"./path":6,"./point":7}],9:[function(_dereq_,module,exports){
 function Vector(i, j, k) {
   this.i = (typeof i === 'number') ? i : 0;
   this.j = (typeof j === 'number') ? j : 0;

@@ -4,6 +4,7 @@ var Path = require('./path');
 var Point = require('./point');
 var Shape = require('./shape');
 var Vector = require('./vector');
+var Obj = require('./obj');
 
 
 /**
@@ -135,6 +136,7 @@ Isomer.Path = Path;
 Isomer.Point = Point;
 Isomer.Shape = Shape;
 Isomer.Vector = Vector;
+Isomer.Obj = Obj;
 
 /* Expose Isomer API */
 module.exports = Isomer;

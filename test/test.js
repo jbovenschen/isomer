@@ -7,6 +7,7 @@ var Point = Isomer.Point;
 var Path = Isomer.Path;
 var Shape = Isomer.Shape;
 var Color = Isomer.Color;
+var Obj = Isomer.Obj
 
 function TestSuite() {}
 
@@ -189,6 +190,14 @@ TestSuite['red light transparent'] = function () {
   iso.add(Shape.Prism(new Point(1, 0), 1, 1, 1), new Color(50, 180, 60, transparency));
   iso.add(Shape.Prism(new Point(0, 0), 1, 1, 0.5), new Color(180, 50, 60, transparency));
   iso.lightColor = new Color(255, 255, 255);
+};
+
+TestSuite['Import guy'] = function () {
+  var importedFile = new Obj('./obj/guy.obj', function(generatedShapes) {
+    for (shape in generatedShapes) {
+      iso.add(generatedShapes, new Color(0, 180, 180));
+    }
+  });
 };
 
 /**
