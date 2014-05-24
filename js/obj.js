@@ -17,56 +17,62 @@ Obj.prototype.importFile = function () {
     if (request.readyState === 4) { 
       if (request.status === 200) {
         self.file = request.response;
-        return self.parseObj();
+        return self.fromObj();
       }
     }
   };
   request.send();
 };
 
-/*
- * Function for parsing loaded .obj file
- */
-Obj.prototype.parseObj = function() {
-  var Path = Isomer.Path;
-  var Point = Isomer.Point;
-  var vertices = [];
+Obj.prototype.fromObj = function() {
+  var lines = this.file.split(/[ \t]*\r?\n[ \t]*/);
   var groups = [];
-  var newGroup = [];
-  var path = new Path();
-  var lines = this.file.split('\n');
-  var Point = Isomer.Point;
+  var shape = [];
+  var newPathVertices = [];
+  var vertices = [];
+  var object = [];
 
-  for (var i = 0; i < lines.length;i++)
-  {
-    var line = lines[i].trim().split(/\s+/);
+  for(var i = 0; i < lines.length; i++) {
+    var lineTokens = lines[i].trim().split(/\s+/);
 
-    switch(line[0]) {
+    switch(lineTokens[0]) {
       case 'v':
-        vertices.push(new Point(parseFloat(line[1]), parseFloat(line[2]), parseFloat(line[3])));
+        if (lineTokens.length > 3)
+          vertices.push(new Point(parseFloat(lineTokens[1]), parseFloat(lineTokens[2]), parseFloat(lineTokens[3])));
         break;
-
+      case 'vt':
+        break;
       case 'f':
-        var newPathVertices = [];
-        line.splice(0, 1);
-        for(var x = 0; x < line.length; x++) {
-          newPathVertices.push(vertices[line[x]-1]);
+        if (lineTokens.length > 3) {
+          // TODO normal mapping?
+          // TODO textures
+          newPathVertices = [];
+
+          for (var x = 1; x < lineTokens.length; x++) {
+            var faceVertices = lineTokens[x].split('/');
+            newPathVertices.push(vertices[faceVertices[0] -1 ]);
+          }
+
+          shape.push(new Path(newPathVertices));
         }
-        newGroup.push(new Path(newPathVertices));
         break;
       case 'g':
-        if (line[1])
-        {
-            groups.push(newGroup);
-        }
-        newGroup = new Shape();
+        var newGroup = [];
         break;
+      case 'o':
+        break;
+      case 'mtllib':
+        break;
+      case 'usemtl':
+        break;
+      default:
+        break;
+
     }
   }
 
-  groups.push(newGroup);
-  this.generatedObject = groups;
-  this.callBack(this.generatedObject);
-};
+  console.log(vertices[12]);
+  this.callBack(new Shape(shape));
+}
 
 module.exports = Obj;

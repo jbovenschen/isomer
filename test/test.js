@@ -193,11 +193,12 @@ TestSuite['red light transparent'] = function () {
 };
 
 TestSuite['Import guy'] = function () {
-  var importedFile = new Obj('./obj/guy.obj', function(generatedShapes) {
-    for (shape in generatedShapes) {
-      iso.add(generatedShapes, new Color(0, 180, 180));
-    }
+  var importedFile = new Obj('./obj/guy.obj', function(generatedShape) {
+    console.log(generatedShape);
+      iso.add(generatedShape, new Color(0, 180, 180), 0, 'count');
+      iso.draw(1);
   });
+
 };
 
 /**

@@ -6,7 +6,7 @@
  * Released under the MIT license
  * http://jdan.github.io/isomer/license.txt
  *
- * Date: 2014-05-22
+ * Date: 2014-05-24
  */
 !function(e){if("object"==typeof exports)module.exports=e();else if("function"==typeof define&&define.amd)define(e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.Isomer=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 /**
@@ -217,6 +217,11 @@ function Isomer(canvasId, options) {
    */
   this.colorDifference = 0.20;
   this.lightColor = options.lightColor || new Color(255, 255, 255);
+
+  /**
+   * List of {path, color, shapeName} to draw
+   */
+  this.paths = [];
 }
 
 /**
@@ -248,24 +253,214 @@ Isomer.prototype._translatePoint = function (point) {
 /**
  * Adds a shape or path to the scene
  *
- * This method also accepts arrays
+ * This method also accepts arrays.
+ * By default or if expertMode=0, shapes are drawn
  */
-Isomer.prototype.add = function (item, baseColor) {
+Isomer.prototype.add = function (item, baseColor, expertMode, name) {
+  var expertModeValid = !!expertMode;
   if (Object.prototype.toString.call(item) == '[object Array]') {
     for (var i = 0; i < item.length; i++) {
-      this.add(item[i], baseColor);
+      this.add(item[i], baseColor, expertModeValid, name);
     }
   } else if (item instanceof Path) {
-    this._addPath(item, baseColor);
+    if(expertModeValid){
+      this.paths[this.paths.length] = {path:item, color:baseColor, shapeName:(name||'')};
+    } else {
+      this._addPath(item, baseColor);
+    }
   } else if (item instanceof Shape) {
-    /* Fetch paths ordered by distance to prevent overlaps */
     var paths = item.orderedPaths();
     for (var i in paths) {
-      this._addPath(paths[i], baseColor);
+      if(expertModeValid){
+        this.paths[this.paths.length] = {path:paths[i], color:baseColor, shapeName:(name||'')};
+      } else {
+	this._addPath(paths[i], baseColor);
+      }
     }
   }
 };
 
+/**
+ * Draws the content of this.paths
+ * By default, does not sort the paths between shapes
+ */
+Isomer.prototype.draw = function(sortPath){
+  var sortValid = !!sortPath;
+  if(sortValid){
+    this.sortPaths();
+  }
+  for (var i in this.paths){
+    this._addPath(this.paths[i].path, this.paths[i].color);
+  }
+}
+
+
+/**
+ * Sorts the paths contained in this.paths,
+ * ordered so that distant faces are displayed first
+ *  */
+Isomer.prototype.sortPaths = function () {
+  var Point = Isomer.Point;
+  var observer = new Point(-10, -10, 20);
+  var pathList = [];
+  for (var i = 0; i < this.paths.length; i++) {
+    var currentPath = this.paths[i];
+    pathList[i] = {
+      path: currentPath.path,
+      polygon: currentPath.path.points.map(this._translatePoint.bind(this)),
+      color: currentPath.color,
+      drawn: 0,
+      shapeName: currentPath.shapeName
+
+    };
+  }
+ this.paths.length = 0;
+
+ // topological sort
+  
+  var drawBefore = [];
+  for (var i = 0 ; i < pathList.length ; i++){
+	drawBefore[i] = [];
+  }
+  for (var i = 0 ; i < pathList.length ; i++){
+    for (var j = 0 ; j < i ; j++){
+	  if(this._hasIntersection(pathList[i].polygon, pathList[j].polygon)){
+	    var cmpPath = pathList[i].path.closerThan(pathList[j].path, observer);
+	    if(cmpPath < 0){
+	      drawBefore[i][drawBefore[i].length] = j;
+	    }
+	    if(cmpPath > 0){
+	      drawBefore[j][drawBefore[j].length] = i;
+	    }
+	  }
+	}
+  }
+  var drawThisTurn = 1;
+  var index = 0;
+  while(drawThisTurn == 1){
+	index++;
+	drawThisTurn = 0;
+	for (var i = 0 ; i < pathList.length ; i++){
+	  if(pathList[i].drawn == 0){
+	    var canDraw = 1;
+		for (var j = 0 ; j < drawBefore[i].length ; j++){
+		  if(pathList[drawBefore[i][j]].drawn == 0){canDraw = 0;}
+		}
+		if(canDraw == 1){
+		   this.add(pathList[i].path, pathList[i].color, true, pathList[i].shapeName);
+		   drawThisTurn = 1;
+		   pathList[i].drawn = 1;
+		}
+	  }
+	}
+  }
+  //purge 
+  //could be done more in a smarter order, that's why drawn is is an element of pathList[] and not a separate array
+  for (var i = 0 ; i < pathList.length ; i++){
+    if(pathList[i].drawn == 0){
+      this.add(pathList[i].path, pathList[i].color, true, pathList[i].shapeName);
+    }
+  }
+};
+
+
+//+ Jonas Raoni Soares Silva
+//@ http://jsfromhell.com/math/is-point-in-poly [rev. #0]
+//see also http://jsperf.com/ispointinpath-boundary-test-speed/2
+function isPointInPoly(poly, pt){
+    for(var c = false, i = -1, l = poly.length, j = l - 1; ++i < l; j = i)
+        ((poly[i].y <= pt.y && pt.y < poly[j].y) || (poly[j].y <= pt.y && pt.y < poly[i].y))
+        && (pt.x < (poly[j].x - poly[i].x) * (pt.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)
+        && (c = !c);
+    return c;
+}
+
+
+/**
+ * Does polygonA has intersection with polygonB ?
+ * Naive approach done first : approximate the polygons with a rectangle
+ * Then more complex method : see if edges cross, or one contained in the other
+ */
+Isomer.prototype._hasIntersection = function(pointsA, pointsB) {
+  var i, j;
+  var AminX = pointsA[0].x;
+  var AminY = pointsA[0].y;
+  var AmaxX = AminX;
+  var AmaxY = AminY;
+  var BminX = pointsB[0].x;
+  var BminY = pointsB[0].y;
+  var BmaxX = BminX;
+  var BmaxY = BminY;
+  for(i = 0 ; i < pointsA.length ; i++){
+    AminX = Math.min(AminX, pointsA[i].x);
+    AminY = Math.min(AminY, pointsA[i].y);
+	AmaxX = Math.max(AmaxX, pointsA[i].x);
+    AmaxY = Math.max(AmaxY, pointsA[i].y);
+  }
+  for(i = 0 ; i < pointsB.length ; i++){
+    BminX = Math.min(BminX, pointsB[i].x);
+    BminY = Math.min(BminY, pointsB[i].y);
+	BmaxX = Math.max(BmaxX, pointsB[i].x);
+    BmaxY = Math.max(BmaxY, pointsB[i].y);
+  }
+  
+  if(((AminX <= BminX && BminX <= AmaxX) || (BminX <= AminX && AminX <= BmaxX)) && 
+     ((AminY <= BminY && BminY <= AmaxY) || (BminY <= AminY && AminY <= BmaxY))) {
+    // now let's be more specific
+	var polyA = pointsA.slice();
+	var polyB = pointsB.slice();
+	polyA.push(pointsA[0]);
+	polyB.push(pointsB[0]);
+
+	// see if edges cross, or one contained in the other	
+	var deltaAX = [];
+	var deltaAY = [];
+	var deltaBX = [];
+	var deltaBY = [];
+	var rA = [];
+	var rB = [];
+	for(i = 0 ; i <= polyA.length - 2 ; i++){
+	  deltaAX[i] = polyA[i+1].x - polyA[i].x;
+	  deltaAY[i] = polyA[i+1].y - polyA[i].y;
+	  //equation written as deltaY.x - deltaX.y + r = 0
+	  rA[i] = deltaAX[i] * polyA[i].y - deltaAY[i] * polyA[i].x;
+	}
+	for(i = 0 ; i <= polyB.length - 2 ; i++){
+	  deltaBX[i] = polyB[i+1].x - polyB[i].x;
+	  deltaBY[i] = polyB[i+1].y - polyB[i].y;
+	  rB[i] = deltaBX[i] * polyB[i].y - deltaBY[i] * polyB[i].x;
+	}
+	
+	for(i = 0 ; i <= polyA.length - 2 ; i++){
+	  for(j = 0 ; j <= polyB.length - 2 ; j++){
+	    if(deltaAX[i] * deltaBY[j] != deltaAY[i] * deltaBX[j]){
+		  //case when vectors are colinear, or one polygon included in the other, is covered after
+		  //two segments cross each other if and only if the points of the first are on each side of the line defined by the second and vice-versa
+		  if((deltaAY[i] * polyB[j].x - deltaAX[i] * polyB[j].y + rA[i]) * (deltaAY[i] * polyB[j+1].x - deltaAX[i] * polyB[j+1].y + rA[i]) < -0.000000001 &&  
+		     (deltaBY[j] * polyA[i].x - deltaBX[j] * polyA[i].y + rB[j]) * (deltaBY[j] * polyA[i+1].x - deltaBX[j] * polyA[i+1].y + rB[j]) < -0.000000001){
+			   return true;
+		  }
+		}
+	  }
+	}
+	
+	for(i = 0 ; i <= polyA.length - 2 ; i++){
+	  if(isPointInPoly(polyB, {x:polyA[i].x, y:polyA[i].y})){
+	    return true;
+	  }
+	}
+	for(i = 0 ; i <= polyB.length - 2 ; i++){
+	  if(isPointInPoly(polyA, {x:polyB[i].x, y:polyB[i].y})){
+	    return true;
+	  }
+	}
+	
+	return false;
+  } else {
+    return false;
+  }
+
+};
 
 /**
  * Adds a path to the scene
@@ -339,7 +534,7 @@ Obj.prototype.importFile = function () {
     if (request.readyState === 4) { 
       if (request.status === 200) {
         self.file = request.response;
-        return self.parseObj();
+        return self.fromObj();
       }
     }
   };
@@ -349,47 +544,98 @@ Obj.prototype.importFile = function () {
 /*
  * Function for parsing loaded .obj file
  */
-Obj.prototype.parseObj = function() {
-  var Path = Isomer.Path;
-  var Point = Isomer.Point;
-  var vertices = [];
+// Obj.prototype.parseObj = function() {
+//   var Path = Isomer.Path;
+//   var Point = Isomer.Point;
+//   var vertices = [];
+//   var groups = [];
+//   var newGroup = [];
+//   var path = new Path();
+//   var lines = this.file.split('\n');
+//   var Point = Isomer.Point;
+
+//   for (var i = 0; i < lines.length;i++)
+//   {
+//     var line = lines[i].trim().split(/\s+/);
+
+//     switch(line[0]) {
+//       case 'v':
+//         vertices.push(new Point(parseFloat(line[1]), parseFloat(line[2]), parseFloat(line[3])));
+//         break;
+
+//       case 'f':
+//         var newPathVertices = [];
+//         line.splice(0, 1);
+//         for(var x = 0; x < line.length; x++) {
+//           newPathVertices.push(vertices[line[x]-1]);
+//         }
+//         newGroup.push(new Path(newPathVertices));
+//         break;
+//       case 'g':
+//         if (line[1])
+//         {
+//             groups.push(newGroup);
+//         }
+//         newGroup = new Shape();
+//         break;
+//     }
+//   }
+
+//   groups.push(newGroup);
+//   this.generatedObject = groups;
+//   this.callBack(this.generatedObject);
+// };
+
+Obj.prototype.fromObj = function() {
+  var lines = this.file.split(/[ \t]*\r?\n[ \t]*/);
   var groups = [];
-  var newGroup = [];
-  var path = new Path();
-  var lines = this.file.split('\n');
-  var Point = Isomer.Point;
+  var shape = [];
+  var newPathVertices = [];
+  var vertices = [];
+  var object = [];
 
-  for (var i = 0; i < lines.length;i++)
-  {
-    var line = lines[i].trim().split(/\s+/);
+  for(var i = 0; i < lines.length; i++) {
+    var lineTokens = lines[i].trim().split(/\s+/);
 
-    switch(line[0]) {
+    switch(lineTokens[0]) {
       case 'v':
-        vertices.push(new Point(parseFloat(line[1]), parseFloat(line[2]), parseFloat(line[3])));
+        if (lineTokens.length > 3)
+          vertices.push(new Point(parseFloat(lineTokens[1]), parseFloat(lineTokens[2]), parseFloat(lineTokens[3])));
         break;
-
+      case 'vt':
+        break;
       case 'f':
-        var newPathVertices = [];
-        line.splice(0, 1);
-        for(var x = 0; x < line.length; x++) {
-          newPathVertices.push(vertices[line[x]-1]);
+        if (lineTokens.length > 3) {
+          // TODO normal mapping?
+          // TODO textures
+          newPathVertices = [];
+
+          for (var x = 1; x < lineTokens.length; x++) {
+            var faceVertices = lineTokens[x].split('/');
+            newPathVertices.push(vertices[faceVertices[0] -1 ]);
+          }
+
+          shape.push(new Path(newPathVertices));
         }
-        newGroup.push(new Path(newPathVertices));
         break;
       case 'g':
-        if (line[1])
-        {
-            groups.push(newGroup);
-        }
-        newGroup = new Shape();
+        var newGroup = [];
         break;
+      case 'o':
+        break;
+      case 'mtllib':
+        break;
+      case 'usemtl':
+        break;
+      default:
+        break;
+
     }
   }
 
-  groups.push(newGroup);
-  this.generatedObject = groups;
-  this.callBack(this.generatedObject);
-};
+  console.log(vertices[12]);
+  this.callBack(new Shape(shape));
+}
 
 module.exports = Obj;
 },{}],6:[function(_dereq_,module,exports){
@@ -481,6 +727,53 @@ Path.prototype.depth = function () {
 
   return total / (this.points.length || 1);
 };
+
+ /**
+   * If pathB ("this") is closer from the observer than pathA, it must be drawn after.
+   * It is closer if one of its vertices and the observer are on the same side of the plane defined by pathA.
+   */
+  Path.prototype.closerThan = function(pathA, observer) {
+    var result = pathA._countCloserThan(this, observer) - this._countCloserThan(pathA, observer);
+	return result;
+  }
+  
+  Path.prototype._countCloserThan = function(pathA, observer) {
+    var Vector = Isomer.Vector;
+	var i = 0;
+	
+    // the plane containing pathA is defined by the three points A, B, C
+    var AB = Vector.fromTwoPoints(pathA.points[0], pathA.points[1]);
+    var AC = Vector.fromTwoPoints(pathA.points[0], pathA.points[2]);
+    var n = Vector.crossProduct(AB, AC);
+   
+    var OA = Vector.fromTwoPoints(Point.ORIGIN, pathA.points[0]);
+    var OU = Vector.fromTwoPoints(Point.ORIGIN, observer); //U = user = observer
+
+    // Plane defined by pathA such as ax + by + zc = d
+    // Here d = nx*x + ny*y + nz*z = n.OA
+    var d = Vector.dotProduct(n, OA);
+    var observerPosition = Vector.dotProduct(n, OU) - d;
+	var result = 0;
+	var result0 = 0;
+    for (i = 0; i < this.points.length; i++) {
+      var OP = Vector.fromTwoPoints(Point.ORIGIN, this.points[i]);
+      var pPosition = Vector.dotProduct(n, OP) - d;
+      if(observerPosition * pPosition >= 0.000000001){ //careful with rounding approximations
+        result++;
+      }
+	  if(observerPosition * pPosition >= -0.000000001 && observerPosition * pPosition < 0.000000001){
+        result0++;
+      }
+    }
+
+	if(result == 0){
+	  return 0;
+	} else {
+      return ((result + result0) / this.points.length); 
+    }
+  };
+  
+
 
 
 /**
