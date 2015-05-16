@@ -3,8 +3,6 @@ class Point {
     this.x = x;
     this.y = y;
     this.z = z;
-
-    return this;
   }
 
   /**
@@ -101,4 +99,5 @@ class Point {
 
 Point.ORIGIN = new Point(0, 0, 0);
 
+/* Expose the Point constructor */
 export default Point;
