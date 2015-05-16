@@ -98,11 +98,9 @@ class Path {
   /**
    * If a shape will be set extend current Path class with the given shapes
    */
-  set shapes(shapes) {
-    let currentPropertyNames = Object.getOwnPropertyNames(this);
-
-    shapes.forEach((shape) => {
-      Path[shape.name] = shape;
+  set preDefinedPaths(paths) {
+    paths.forEach((path) => {
+      Path[path.name] = path;
     });
   }
 }
@@ -162,7 +160,7 @@ let Star = (origin, outerRadius, innerRadius, points) => {
 /*
   Define some paths to play with
 */
-Path.prototype.shapes = [Rectangle, Circle, OldStar, Star];
+Path.prototype.preDefinedPaths = [Rectangle, Circle, Star];
 
 /* Expose the Path constructor */
 export default Path;

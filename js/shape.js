@@ -1,120 +1,106 @@
-var Path = require('./path');
-var Point = require('./point');
+import Path from './path';
+import Point from './point';
 
 /**
  * Shape utility class
  *
  * An Isomer.Shape consists of a list of Isomer.Path's
  */
-function Shape(paths) {
-  if (Object.prototype.toString.call(paths) === '[object Array]') {
-    this.paths = paths;
-  } else {
-    this.paths = Array.prototype.slice.call(arguments);
+class Shape {
+  constructor(paths=[]) {
+    this.paths = (paths instanceof Path ? [paths] : paths);
   }
-}
-
-
-/**
- * Pushes a path onto the end of the Shape
- */
-Shape.prototype.push = function(path) {
-  this.paths.push(path);
-};
-
-
-/**
- * Translates a given shape
- *
- * Simply a forward to Path#translate
- */
-Shape.prototype.translate = function() {
-  var args = arguments;
-
-  return new Shape(this.paths.map(function(path) {
-    return path.translate.apply(path, args);
-  }));
-};
-
-/**
- * Rotates a given shape along the X axis around a given origin
- *
- * Simply a forward to Path#rotateX
- */
-Shape.prototype.rotateX = function() {
-  var args = arguments;
-
-  return new Shape(this.paths.map(function(path) {
-    return path.rotateX.apply(path, args);
-  }));
-};
-
-/**
- * Rotates a given shape along the Y axis around a given origin
- *
- * Simply a forward to Path#rotateY
- */
-Shape.prototype.rotateY = function() {
-  var args = arguments;
-
-  return new Shape(this.paths.map(function(path) {
-    return path.rotateY.apply(path, args);
-  }));
-};
-
-/**
- * Rotates a given shape along the Z axis around a given origin
- *
- * Simply a forward to Path#rotateZ
- */
-Shape.prototype.rotateZ = function() {
-  var args = arguments;
-
-  return new Shape(this.paths.map(function(path) {
-    return path.rotateZ.apply(path, args);
-  }));
-};
-
-/**
- * Scales a path about a given origin
- *
- * Simply a forward to Point#scale
- */
-Shape.prototype.scale = function() {
-  var args = arguments;
-
-  return new Shape(this.paths.map(function(path) {
-    return path.scale.apply(path, args);
-  }));
-};
-
-
-/**
- * Produces a list of the shape's paths ordered by distance to
- * prevent overlaps when drawing
- */
-Shape.prototype.orderedPaths = function() {
-  var paths = this.paths.slice();
 
   /**
-   * Sort the list of faces by distance then map the entries, returning
-   * only the path and not the added "further point" from earlier.
+   * Pushes a path onto the end of the Shape
    */
-  return paths.sort(function(pathA, pathB) {
-    return pathB.depth() - pathA.depth();
-  });
-};
+  push(path) {
+    this.paths.push(path);
+  }
 
+  /**
+   * Translates a given shape
+   *
+   * Simply a forward to Path#translate
+   */
+  translate(x, y, z) {
+    return new Shape(this.paths.map(function(path) {
+      return path.translate(x, y, z);
+    }));
+  }
+
+  /**
+   * Rotates a given shape along the X axis around a given origin
+   *
+   * Simply a forward to Path#rotateX
+   */
+  rotateX(origin, angle) {
+    return new Shape(this.paths.map(function(path) {
+      return path.rotateX(origin, angle);
+    }));
+  }
+
+  /**
+   * Rotates a given shape along the Y axis around a given origin
+   *
+   * Simply a forward to Path#rotateY
+   */
+  rotateY(origin, angle) {
+    return new Shape(this.paths.map(function(path) {
+      return path.rotateY(origin, angle);
+    }));
+  }
+
+  /**
+   * Rotates a given shape along the Z axis around a given origin
+   *
+   * Simply a forward to Path#rotateZ
+   */
+  rotateZ(origin, angle) {
+    return new Shape(this.paths.map(function(path) {
+      return path.rotateZ(origin, angle);
+    }));
+  }
+
+  /**
+   * Scales a path about a given origin
+   *
+   * Simply a forward to Point#scale
+   */
+  scale(origin, dx, dy, dz) {
+    return new Shape(this.paths.map(function(path) {
+      return path.scale(origin, dx, dy, dz);
+    }));
+  }
+
+  /**
+   * Produces a list of the shape's paths ordered by distance to
+   * prevent overlaps when drawing
+   */
+  orderedPaths() {
+    /**
+     * Sort the list of faces by distance then map the entries, returning
+     * only the path and not the added "further point" from earlier.
+     */
+    return this.paths.sort(function(pathA, pathB) {
+      return pathB.depth() - pathA.depth();
+    });
+  }
+
+  set predefinedShapes(shapes) {
+    shapes.forEach((shape) => {
+      Shape[shape.name] = shape;
+    });
+  }
+}
 
 /**
  * Utility function to create a 3D object by raising a 2D path
  * along the z-axis
  */
-Shape.extrude = function(path, height) {
-  height = (typeof height === 'number') ? height : 1;
-
-  var i, topPath = path.translate(0, 0, height);
-  var shape = new Shape();
+Shape.extrude = (path, height=1) => {
+  let i, topPath = path.translate(0, 0, height);
+  let shape = new Shape();
 
   /* Push the top and bottom faces, top face must be oriented correctly */
   shape.push(path.reverse());
@@ -133,21 +119,12 @@ Shape.extrude = function(path, height) {
   return shape;
 };
 
-
-/**
- * Some shapes to play with
- */
-
 /**
  * A prism located at origin with dimensions dx, dy, dz
  */
-Shape.Prism = function(origin, dx, dy, dz) {
-  dx = (typeof dx === 'number') ? dx : 1;
-  dy = (typeof dy === 'number') ? dy : 1;
-  dz = (typeof dz === 'number') ? dz : 1;
-
+let Prism = (origin, dx=1, dy=1, dz=1) => {
   /* The shape we will return */
-  var prism = new Shape();
+  let prism = new Shape();
 
   /* Squares parallel to the x-axis */
   var face1 = new Path([
@@ -162,7 +139,7 @@ Shape.Prism = function(origin, dx, dy, dz) {
   prism.push(face1.reverse().translate(0, dy, 0));
 
   /* Square parallel to the y-axis */
-  var face2 = new Path([
+  let face2 = new Path([
     origin,
     new Point(origin.x, origin.y, origin.z + dz),
     new Point(origin.x, origin.y + dy, origin.z + dz),
@@ -172,7 +149,7 @@ Shape.Prism = function(origin, dx, dy, dz) {
   prism.push(face2.reverse().translate(dx, 0, 0));
 
   /* Square parallel to the xy-plane */
-  var face3 = new Path([
+  let face3 = new Path([
     origin,
     new Point(origin.x + dx, origin.y, origin.z),
     new Point(origin.x + dx, origin.y + dy, origin.z),
@@ -185,16 +162,14 @@ Shape.Prism = function(origin, dx, dy, dz) {
   return prism;
 };
 
-
-Shape.Pyramid = function(origin, dx, dy, dz) {
-  dx = (typeof dx === 'number') ? dx : 1;
-  dy = (typeof dy === 'number') ? dy : 1;
-  dz = (typeof dz === 'number') ? dz : 1;
-
-  var pyramid = new Shape();
+/**
+ * A pyramid located at origin with dimensions dx, dy, dz
+ */
+let Pyramid = (origin, dx=1, dy=1, dz=1) => {
+  let pyramid = new Shape();
 
   /* Path parallel to the x-axis */
-  var face1 = new Path([
+  let face1 = new Path([
     origin,
     new Point(origin.x + dx, origin.y, origin.z),
     new Point(origin.x + dx / 2, origin.y + dy / 2, origin.z + dz)
@@ -204,7 +179,7 @@ Shape.Pyramid = function(origin, dx, dy, dz) {
   pyramid.push(face1.rotateZ(origin.translate(dx / 2, dy / 2), Math.PI));
 
   /* Path parallel to the y-axis */
-  var face2 = new Path([
+  let face2 = new Path([
     origin,
     new Point(origin.x + dx / 2, origin.y + dy / 2, origin.z + dz),
     new Point(origin.x, origin.y + dy, origin.z)
@@ -215,15 +190,18 @@ Shape.Pyramid = function(origin, dx, dy, dz) {
   return pyramid;
 };
 
-
-Shape.Cylinder = function(origin, radius, vertices, height) {
-  radius = (typeof radius === 'number') ? radius : 1;
-
-  var circle = Path.Circle(origin, radius, vertices);
-  var cylinder = Shape.extrude(circle, height);
-
-  return cylinder;
+/**
+ * A cylinder located at origin with radius, amount of vertices and height
+ */
+let Cylinder = (origin, radius=1, vertices, height) => {
+  let circle = Path.Circle(origin, radius, vertices);
+  return Shape.extrude(circle, height);
 };
 
+/*
+  Define some shapes to play with
+*/
+Shape.prototype.predefinedShapes = [Prism, Pyramid, Cylinder];
 
-module.exports = Shape;
+/* Expose the Shape constructor */
+export default Shape;
