@@ -134,9 +134,9 @@ TestSuite['test scales'] = function () {
 
 TestSuite['test extrude'] = function () {
   var s = Shape.extrude(new Path([
-    Point(1, 1, 1),
-    Point(2, 1, 1),
-    Point(2, 3, 1)
+    new Point(1, 1, 1),
+    new Point(2, 1, 1),
+    new Point(2, 3, 1)
   ]), 0.3).scale(Point.ORIGIN, 5);
 
   iso.add(s, new Color(50, 160, 60));

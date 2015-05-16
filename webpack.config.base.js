@@ -37,10 +37,15 @@ module.exports = function(options) {
     },
 
     module: {
+      loaders: [{
+        test: /\.js$/,
+        exclude: /node_modules/,
+        loader: 'babel-loader?optional=runtime'
+      }],
       preLoaders: [{
         test: /\.js$/,
         exclude: /node_modules/,
-        loader: 'jscs-loader'
+        loader: 'jscs-loader?esnext'
       }]
     },
 
